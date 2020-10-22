@@ -436,22 +436,27 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun tryLoadGallery() {
-        if (hasPermission(PERMISSION_WRITE_STORAGE)) {
-            if (!config.wasUpgradedFromFreeShown && isPackageInstalled("com.simplemobiletools.gallery")) {
-                ConfirmationDialog(this, "", R.string.upgraded_from_free, R.string.ok, 0) {}
-                config.wasUpgradedFromFreeShown = true
-            }
+        handlePermission(PERMISSION_WRITE_STORAGE) {
+            if (it) {
+                if (!config.wasUpgradedFromFreeShown && isPackageInstalled("com.simplemobiletools.gallery")) {
+                    ConfirmationDialog(this, "", R.string.upgraded_from_free, R.string.ok, 0) {}
+                    config.wasUpgradedFromFreeShown = true
+                }
 
-            checkOTGPath()
-            checkDefaultSpamFolders()
+                checkOTGPath()
+                checkDefaultSpamFolders()
 
-            if (config.showAll) {
-                showAllMedia()
+                if (config.showAll) {
+                    showAllMedia()
+                } else {
+                    getDirectories()
+                }
+
+                setupLayoutManager()
             } else {
-                getDirectories()
+                toast(R.string.no_storage_permissions)
+                finish()
             }
-
-            setupLayoutManager()
         }
     }
 
@@ -908,6 +913,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0
         val favoritePaths = getFavoritePaths()
         val dirPathsToRemove = ArrayList<String>()
+        val lastModifieds = if (isRPlus()) mLastMediaFetcher!!.getLastModifieds() else HashMap()
+        val dateTakens = mLastMediaFetcher!!.getDateTakens()
 
         try {
             for (directory in dirs) {
@@ -927,7 +934,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         grouping and GROUP_BY_LAST_MODIFIED_DAILY != 0 ||
                         grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0
 
-                val curMedia = mLastMediaFetcher!!.getFilesFrom(directory.path, getImagesOnly, getVideosOnly, getProperDateTaken, getProperLastModified, getProperFileSize, favoritePaths, false)
+                val curMedia = mLastMediaFetcher!!.getFilesFrom(directory.path, getImagesOnly, getVideosOnly, getProperDateTaken, getProperLastModified,
+                    getProperFileSize, favoritePaths, false, lastModifieds, dateTakens)
+
                 val newDir = if (curMedia.isEmpty()) {
                     if (directory.path != tempFolderPath) {
                         dirPathsToRemove.add(directory.path)
@@ -966,14 +975,19 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     }.start()
                 }
 
-                getCachedMedia(directory.path, getVideosOnly, getImagesOnly) {
-                    it.forEach {
-                        if (!curMedia.contains(it)) {
-                            val path = (it as? Medium)?.path
-                            if (path != null) {
-                                deleteDBPath(path)
+                if (!directory.isRecycleBin()) {
+                    getCachedMedia(directory.path, getVideosOnly, getImagesOnly) {
+                        val mediaToDelete = ArrayList<Medium>()
+                        it.forEach {
+                            if (!curMedia.contains(it)) {
+                                val medium = it as? Medium
+                                val path = medium?.path
+                                if (path != null) {
+                                    mediaToDelete.add(medium)
+                                }
                             }
                         }
+                        mediaDB.deleteMedia(*mediaToDelete.toTypedArray())
                     }
                 }
             }
@@ -1019,7 +1033,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     grouping and GROUP_BY_LAST_MODIFIED_DAILY != 0 ||
                     grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0
 
-            val newMedia = mLastMediaFetcher!!.getFilesFrom(folder, getImagesOnly, getVideosOnly, getProperDateTaken, getProperLastModified, getProperFileSize, favoritePaths, false)
+            val newMedia = mLastMediaFetcher!!.getFilesFrom(folder, getImagesOnly, getVideosOnly, getProperDateTaken, getProperLastModified,
+                getProperFileSize, favoritePaths, false, lastModifieds, dateTakens)
+
             if (newMedia.isEmpty()) {
                 continue
             }

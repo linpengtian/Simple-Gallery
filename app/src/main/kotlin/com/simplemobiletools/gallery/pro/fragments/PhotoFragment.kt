@@ -36,6 +36,7 @@ import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+import com.github.penfeizhou.animation.webp.WebPDrawable
 import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.ensureBackgroundThread
@@ -288,7 +289,7 @@ class PhotoFragment : ViewPagerFragment() {
         super.setMenuVisibility(menuVisible)
         mIsFragmentVisible = menuVisible
         if (mWasInit) {
-            if (!mMedium.isGIF()) {
+            if (!mMedium.isGIF() && !mMedium.isWebP()) {
                 photoFragmentVisibilityChanged(menuVisible)
             }
         }
@@ -388,6 +389,25 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun loadBitmap(addZoomableView: Boolean = true) {
+        if (context == null) {
+            return
+        }
+
+        val path = getFilePathToShow()
+        if (path.isWebP()) {
+            val drawable = WebPDrawable.fromFile(path)
+            if (drawable.intrinsicWidth == 0) {
+                loadWithGlide(path, addZoomableView)
+            } else {
+                drawable.setLoopLimit(0)
+                mView.gestures_view.setImageDrawable(drawable)
+            }
+        } else {
+            loadWithGlide(path, addZoomableView)
+        }
+    }
+
+    private fun loadWithGlide(path: String, addZoomableView: Boolean) {
         val priority = if (mIsFragmentVisible) Priority.IMMEDIATE else Priority.NORMAL
         val options = RequestOptions()
             .signature(getFilePathToShow().getFileSignature())
@@ -401,12 +421,8 @@ class PhotoFragment : ViewPagerFragment() {
             options.diskCacheStrategy(DiskCacheStrategy.NONE)
         }
 
-        if (context == null) {
-            return
-        }
-
         Glide.with(context!!)
-            .load(getFilePathToShow())
+            .load(path)
             .apply(options)
             .listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>?, isFirstResource: Boolean): Boolean {
