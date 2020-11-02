@@ -23,7 +23,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.CreateNewFolderDialog
 import com.simplemobiletools.commons.dialogs.FilePickerDialog
-import com.simplemobiletools.commons.dialogs.NewAppsIconsDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.commons.models.FileDirItem
@@ -153,12 +152,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 toast(R.string.no_storage_permissions)
                 finish()
             }
-        }
-
-        // notify some users about the Dialer, SMS Messenger and Voice Recorder apps
-        if (!config.wasMessengerRecorderShown && config.appRunCount > 35) {
-            NewAppsIconsDialog(this)
-            config.wasMessengerRecorderShown = true
         }
     }
 
@@ -640,6 +633,21 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         layoutManager.spanCount = config.dirColumnCnt
     }
 
+    private fun setupListLayoutManager() {
+        val layoutManager = directories_grid.layoutManager as MyGridLayoutManager
+        layoutManager.spanCount = 1
+        layoutManager.orientation = RecyclerView.VERTICAL
+        directories_refresh_layout.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+
+        val smallMargin = resources.getDimension(R.dimen.small_margin).toInt()
+        (directories_grid.layoutParams as RelativeLayout.LayoutParams).apply {
+            topMargin = smallMargin
+            bottomMargin = smallMargin
+        }
+
+        mZoomListener = null
+    }
+
     private fun measureRecyclerViewContent(directories: ArrayList<Directory>) {
         directories_grid.onGlobalLayout {
             if (config.scrollHorizontally) {
@@ -652,16 +660,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun calculateContentWidth(directories: ArrayList<Directory>) {
         val layoutManager = directories_grid.layoutManager as MyGridLayoutManager
-        val thumbnailWidth = layoutManager.getChildAt(0)?.width ?: 0
-        val fullWidth = ((directories.size - 1) / layoutManager.spanCount + 1) * thumbnailWidth
+        val thumbnailWidth = (layoutManager.getChildAt(0)?.width ?: 0) + resources.getDimension(R.dimen.medium_margin).toInt() * 2
+        val columnCount = (directories.size - 1) / layoutManager.spanCount + 1
+        val fullWidth = columnCount * thumbnailWidth
         directories_horizontal_fastscroller.setContentWidth(fullWidth)
         directories_horizontal_fastscroller.setScrollToX(directories_grid.computeHorizontalScrollOffset())
     }
 
     private fun calculateContentHeight(directories: ArrayList<Directory>) {
         val layoutManager = directories_grid.layoutManager as MyGridLayoutManager
-        val thumbnailHeight = layoutManager.getChildAt(0)?.height ?: 0
-        val fullHeight = ((directories.size - 1) / layoutManager.spanCount + 1) * thumbnailHeight
+        val thumbnailHeight = (layoutManager.getChildAt(0)?.height ?: 0) + resources.getDimension(R.dimen.medium_margin).toInt() * 2
+        val rowCount = (directories.size - 1) / layoutManager.spanCount + 1
+        val fullHeight = rowCount * thumbnailHeight
         directories_vertical_fastscroller.setContentHeight(fullHeight)
         directories_vertical_fastscroller.setScrollToY(directories_grid.computeVerticalScrollOffset())
     }
@@ -687,21 +697,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         } else {
             mZoomListener = null
         }
-    }
-
-    private fun setupListLayoutManager() {
-        val layoutManager = directories_grid.layoutManager as MyGridLayoutManager
-        layoutManager.spanCount = 1
-        layoutManager.orientation = RecyclerView.VERTICAL
-        directories_refresh_layout.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-
-        val smallMargin = resources.getDimension(R.dimen.small_margin).toInt()
-        (directories_grid.layoutParams as RelativeLayout.LayoutParams).apply {
-            topMargin = smallMargin
-            bottomMargin = smallMargin
-        }
-
-        mZoomListener = null
     }
 
     private fun toggleRecycleBin(show: Boolean) {
@@ -909,6 +904,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val hiddenString = getString(R.string.hidden)
         val albumCovers = config.parseAlbumCovers()
         val includedFolders = config.includedFolders
+        val noMediaFolders = getNoMediaFoldersSync()
         val tempFolderPath = config.tempFolderPath
         val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0
         val favoritePaths = getFavoritePaths()
@@ -943,7 +939,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     }
                     directory
                 } else {
-                    createDirectoryFromMedia(directory.path, curMedia, albumCovers, hiddenString, includedFolders, getProperFileSize)
+                    createDirectoryFromMedia(directory.path, curMedia, albumCovers, hiddenString, includedFolders, getProperFileSize, noMediaFolders)
                 }
 
                 // we are looping through the already displayed folders looking for changes, do not do anything if nothing changed
@@ -1049,7 +1045,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
             }
 
-            val newDir = createDirectoryFromMedia(folder, newMedia, albumCovers, hiddenString, includedFolders, getProperFileSize)
+            val newDir = createDirectoryFromMedia(folder, newMedia, albumCovers, hiddenString, includedFolders, getProperFileSize, noMediaFolders)
             dirs.add(newDir)
             setupAdapter(dirs)
 

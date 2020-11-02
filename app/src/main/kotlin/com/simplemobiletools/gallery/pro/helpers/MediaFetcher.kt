@@ -82,8 +82,9 @@ class MediaFetcher(val context: Context) {
                 }
             }
 
+            val noMediaFolders = context.getNoMediaFoldersSync()
             distinctPaths.filter {
-                it.shouldFolderBeVisible(excludedPaths, includedPaths, shouldShowHidden, folderNomediaStatuses) { path, hasNoMedia ->
+                it.shouldFolderBeVisible(excludedPaths, includedPaths, shouldShowHidden, folderNomediaStatuses, noMediaFolders) { path, hasNoMedia ->
                     folderNomediaStatuses[path] = hasNoMedia
                 }
             }.toMutableList() as ArrayList<String>
@@ -487,13 +488,13 @@ class MediaFetcher(val context: Context) {
                 } catch (e: Exception) {
                 }
             }
+
+            val dateTakenValues = context.dateTakensDB.getAllDateTakens()
+
+            dateTakenValues.forEach {
+                dateTakens[it.fullPath] = it.taken
+            }
         } catch (e: Exception) {
-        }
-
-        val dateTakenValues = context.dateTakensDB.getAllDateTakens()
-
-        dateTakenValues.forEach {
-            dateTakens[it.fullPath] = it.taken
         }
 
         return dateTakens
